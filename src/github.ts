@@ -1352,7 +1352,7 @@ export class GitHub {
           },
           body: pr.body || '',
           mergeCommit: {oid: pr.merge_commit_sha || ''},
-          files: {nodes: [], pageInfo: {hasNextPage: false}},
+          files: {nodes: [], pageInfo: {hasNextPage: true}},
         });
       } catch (e) {}
       const sha = commit.sha;
