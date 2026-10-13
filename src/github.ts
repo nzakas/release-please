@@ -54,7 +54,7 @@ import {Logger} from '@joaquinjsb/code-suggester/build/src/types';
 import {HttpsProxyAgent} from 'https-proxy-agent';
 import {HttpProxyAgent} from 'http-proxy-agent';
 import {PullRequestOverflowHandler} from './util/pull-request-overflow-handler';
-import {PullRequestGitea} from './util/gitea';
+import {PullRequestGitea, headBranchName} from './util/gitea';
 
 // Extract some types from the `request` package.
 type RequestBuilderType = typeof request;
@@ -732,7 +732,7 @@ export class GitHub {
         ) {
           results += 1;
           yield {
-            headBranchName: pull.head.ref,
+            headBranchName: headBranchName(pull.head),
             baseBranchName: pull.base.ref,
             number: pull.number,
             title: pull.title,
@@ -1021,7 +1021,7 @@ export class GitHub {
       pull_number: number,
     });
     return {
-      headBranchName: response.data.head.ref,
+      headBranchName: headBranchName(response.data.head),
       baseBranchName: response.data.base.ref,
       number: response.data.number,
       title: response.data.title,
@@ -1107,7 +1107,7 @@ export class GitHub {
         state: 'open',
       });
       return {
-        headBranchName: response.data.head.ref,
+        headBranchName: headBranchName(response.data.head),
         baseBranchName: response.data.base.ref,
         number: response.data.number,
         title: response.data.title,
@@ -1344,7 +1344,7 @@ export class GitHub {
           number: pr.number,
           title: pr.title,
           baseRefName: pr.base.ref,
-          headRefName: pr.head.ref,
+          headRefName: headBranchName(pr.head),
           labels: {
             nodes: pr.labels.map(label => {
               return {name: label.name};

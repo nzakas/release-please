@@ -366,6 +366,39 @@ describe('GitHub', () => {
       snapshot(pullRequests!);
       req.done();
     });
+    it('finds the head branch of a pull request whose branch is deleted', async () => {
+      req
+        .get(
+          '/repos/fake/fake/pulls?base=main&state=closed&sort=updated&direction=desc'
+        )
+        .reply(200, [
+          {
+            head: {
+              ref: 'refs/pull/24/head',
+              label: 'release-please--branches--main',
+            },
+            base: {
+              ref: 'main',
+            },
+            number: 24,
+            title: 'chore: release main',
+            body: 'some body',
+            labels: [{name: 'autorelease: pending'}],
+            merge_commit_sha: 'abc123',
+            merged_at: '2022-08-08T19:07:20Z',
+          },
+        ]);
+      const generator = github.pullRequestIterator('main', 'MERGED', 30, false);
+      const pullRequests: PullRequest[] = [];
+      for await (const pullRequest of generator) {
+        pullRequests.push(pullRequest);
+      }
+      expect(pullRequests).lengthOf(1);
+      expect(pullRequests[0].headBranchName).to.eql(
+        'release-please--branches--main'
+      );
+      req.done();
+    });
   });
 
   describe('commitsSince', () => {

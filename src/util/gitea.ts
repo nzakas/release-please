@@ -16,6 +16,25 @@
  * //Modifications made by Joaquin Santana on 19/11/24, 11:00
  */
 
+const PULL_REQUEST_HEAD_REF = /^refs\/pull\/\d+\/head$/;
+
+/**
+ * Find the name of a pull request's head branch. Once the head branch has
+ * been deleted, Gitea reports the head ref as `refs/pull/{number}/head`,
+ * which is not a release branch name, so no release can be built from the
+ * pull request. The name of the deleted branch is still reported as the
+ * head's label.
+ *
+ * @param {object} head The `head` of a pull request from the REST API
+ * @returns {string} The name of the head branch
+ */
+export function headBranchName(head: {ref: string; label?: string}): string {
+  if (head.label && PULL_REQUEST_HEAD_REF.test(head.ref)) {
+    return head.label;
+  }
+  return head.ref;
+}
+
 export interface PullRequestGitea {
   additions: number;
   allow_maintainer_edit: boolean;
