@@ -54,7 +54,7 @@ import {Logger} from '@joaquinjsb/code-suggester/build/src/types';
 import {HttpsProxyAgent} from 'https-proxy-agent';
 import {HttpProxyAgent} from 'http-proxy-agent';
 import {PullRequestOverflowHandler} from './util/pull-request-overflow-handler';
-import {PullRequestGitea, headBranchName} from './util/gitea';
+import {PullRequestGitea, headBranchName, withApiUrl} from './util/gitea';
 
 // Extract some types from the `request` package.
 type RequestBuilderType = typeof request;
@@ -259,14 +259,19 @@ export class GitHub {
     } catch (e) {
       releasePleaseVersion = require('../package.json').version;
     }
+    const octokit = new Octokit({
+      baseUrl: apiUrl,
+      auth: options.token,
+      request: {
+        agent: this.createDefaultAgent(apiUrl, options.proxy),
+      },
+    });
+    // the links that pagination follows are not always under apiUrl
+    octokit.hook.before('request', requestOptions => {
+      requestOptions.url = withApiUrl(requestOptions.url, apiUrl);
+    });
     const apis = options.octokitAPIs ?? {
-      octokit: new Octokit({
-        baseUrl: apiUrl,
-        auth: options.token,
-        request: {
-          agent: this.createDefaultAgent(apiUrl, options.proxy),
-        },
-      }),
+      octokit,
       request: request.defaults({
         baseUrl: apiUrl,
         headers: {

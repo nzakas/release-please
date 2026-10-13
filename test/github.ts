@@ -399,6 +399,47 @@ describe('GitHub', () => {
       );
       req.done();
     });
+    it('requests the next page from the configured API URL', async () => {
+      const apiUrl = 'http://gitea.internal:3000/api/v1';
+      const pulls = '/api/v1/repos/fake/fake/pulls';
+      const query = 'base=main&state=closed&sort=updated&direction=desc';
+      const pull = (number: number) => ({
+        head: {ref: 'feature-branch'},
+        base: {ref: 'main'},
+        number,
+        title: 'some title',
+        body: 'some body',
+        labels: [],
+        merge_commit_sha: 'abc123',
+        merged_at: '2022-08-08T19:07:20Z',
+      });
+      const gitea = nock('http://gitea.internal:3000')
+        .get(`${pulls}?${query}`)
+        .reply(200, [pull(1)], {
+          // built from ROOT_URL, which is not where the API was reached
+          link: `<https://gitea.example.com${pulls}?${query}&page=2>; rel="next"`,
+        })
+        .get(`${pulls}?${query}&page=2`)
+        .reply(200, [pull(2)]);
+      const giteaGithub = await GitHub.create({
+        owner: 'fake',
+        repo: 'fake',
+        defaultBranch: 'main',
+        apiUrl,
+      });
+      const generator = giteaGithub.pullRequestIterator(
+        'main',
+        'MERGED',
+        30,
+        false
+      );
+      const numbers: number[] = [];
+      for await (const pullRequest of generator) {
+        numbers.push(pullRequest.number);
+      }
+      expect(numbers).to.eql([1, 2]);
+      gitea.done();
+    });
   });
 
   describe('commitsSince', () => {
