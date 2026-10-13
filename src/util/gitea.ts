@@ -35,6 +35,36 @@ export function headBranchName(head: {ref: string; label?: string}): string {
   return head.ref;
 }
 
+const API_PATH = '/api/v1';
+
+/**
+ * Point a link returned by the API at the URL the API was configured with.
+ * Gitea builds the pagination links in the `Link` header from its ROOT_URL
+ * setting, not from the address the request arrived at. When the API is
+ * reached at another address, such as an internal one, the next page would
+ * be requested from a host that may be unreachable or answer with a login
+ * page.
+ *
+ * @param {string} url The URL about to be requested
+ * @param {string} apiUrl The configured base URL of the API
+ * @returns {string} The same resource under `apiUrl` when `url` is an
+ *   absolute link to the Gitea API, and `url` otherwise
+ */
+export function withApiUrl(url: string, apiUrl: string): string {
+  const baseUrl = apiUrl.replace(/\/+$/, '');
+  // route templates, like /repos/{owner}/{repo}/pulls, are already relative
+  if (!baseUrl.endsWith(API_PATH) || !/^https?:\/\//i.test(url)) {
+    return url;
+  }
+  const {pathname, search} = new URL(url);
+  // ROOT_URL may have a path of its own in front of the API's
+  const index = pathname.indexOf(`${API_PATH}/`);
+  if (index === -1) {
+    return url;
+  }
+  return `${baseUrl}${pathname.slice(index + API_PATH.length)}${search}`;
+}
+
 export interface PullRequestGitea {
   additions: number;
   allow_maintainer_edit: boolean;
