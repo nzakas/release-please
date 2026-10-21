@@ -33,6 +33,8 @@ import {
 
 const MAX_ISSUE_BODY_SIZE = 65536;
 const MAX_SLEEP_SECONDS = 20;
+// Gitea's default MAX_RESPONSE_ITEMS; a server set lower returns fewer
+const RELEASES_PAGE_SIZE = 50;
 export const GH_API_URL = 'https://api.github.com';
 export const GH_GRAPHQL_URL = 'https://api.github.com';
 type OctokitType = InstanceType<typeof Octokit>;
@@ -1671,20 +1673,30 @@ export class GitHub {
   private async releaseGraphQL(
     cursor?: string
   ): Promise<ReleaseHistory | null> {
-    const response = await this.octokit.rest.repos.listReleases({
+    // the cursor is a page number. Gitea caps the page size at its
+    // MAX_RESPONSE_ITEMS setting, so a short page is not proof of the last
+    // page; only an empty one is.
+    const page = Number(cursor ?? 1);
+    const params = {
       owner: this.repository.owner,
       repo: this.repository.repo,
-    });
+      // Gitea names the page size limit, not per_page
+      limit: RELEASES_PAGE_SIZE,
+      page,
+    };
+    const response = await this.octokit.rest.repos.listReleases(params);
 
     if (!response.data.length) {
-      this.logger.warn('Could not find releases.');
+      if (page === 1) {
+        this.logger.warn('Could not find releases.');
+      }
       return null;
     }
     const releases = response.data as unknown as GraphQLRelease[];
     return {
       pageInfo: {
-        hasNextPage: false,
-        endCursor: undefined,
+        hasNextPage: true,
+        endCursor: String(page + 1),
       },
       data: releases
         .filter(release => !!release.target_commitish)
