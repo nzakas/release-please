@@ -706,43 +706,77 @@ describe('GitHub', () => {
   });
 
   describe('releaseIterator', () => {
+    const releasesPath = '/repos/fake/fake/releases';
+    const release = (number: number, draft = false) => ({
+      name: `v1.0.${number}`,
+      tag_name: `v1.0.${number}`,
+      target_commitish: `sha${number}`,
+      body: 'some notes',
+      url: `https://github.com/fake/fake/releases/v1.0.${number}`,
+      draft,
+    });
+    const range = (from: number, to: number) =>
+      Array.from({length: to - from + 1}, (_, i) => release(from + i));
+
     it('iterates through releases', async () => {
-      const graphql = JSON.parse(
-        readFileSync(resolve(fixturesPath, 'releases.json'), 'utf8')
-      );
-      req.post('/graphql').reply(200, {
-        data: graphql,
-      });
+      req
+        .get(`${releasesPath}?limit=50&page=1`)
+        .reply(200, range(1, 5))
+        .get(`${releasesPath}?limit=50&page=2`)
+        .reply(200, []);
       const generator = github.releaseIterator();
-      const releases: GitHubRelease[] = [];
+      const found: GitHubRelease[] = [];
       for await (const release of generator) {
-        releases.push(release);
+        found.push(release);
       }
-      expect(releases).lengthOf(5);
+      expect(found).lengthOf(5);
+      expect(found[0]).to.eql({
+        name: 'v1.0.1',
+        tagName: 'v1.0.1',
+        sha: 'sha1',
+        notes: 'some notes',
+        url: 'https://github.com/fake/fake/releases/v1.0.1',
+        draft: false,
+      });
+      req.done();
+    });
+
+    it('iterates through pages shorter than the requested size', async () => {
+      // Gitea caps the page size at MAX_RESPONSE_ITEMS, 30 here
+      req
+        .get(`${releasesPath}?limit=50&page=1`)
+        .reply(200, range(1, 30))
+        .get(`${releasesPath}?limit=50&page=2`)
+        .reply(200, range(31, 35))
+        .get(`${releasesPath}?limit=50&page=3`)
+        .reply(200, []);
+      const generator = github.releaseIterator();
+      const found: GitHubRelease[] = [];
+      for await (const release of generator) {
+        found.push(release);
+      }
+      expect(found).lengthOf(35);
+      expect(found[34].tagName).to.eql('v1.0.35');
+      req.done();
     });
 
     it('iterates through up to 3 releases', async () => {
-      const graphql = JSON.parse(
-        readFileSync(resolve(fixturesPath, 'releases.json'), 'utf8')
-      );
-      req.post('/graphql').reply(200, {
-        data: graphql,
-      });
+      req.get(`${releasesPath}?limit=50&page=1`).reply(200, range(1, 5));
       const generator = github.releaseIterator({maxResults: 3});
-      const releases: GitHubRelease[] = [];
+      const found: GitHubRelease[] = [];
       for await (const release of generator) {
-        releases.push(release);
+        found.push(release);
       }
-      expect(releases).lengthOf(3);
+      expect(found).lengthOf(3);
+      req.done();
     });
 
     it('correctly identifies draft releases', async () => {
-      const graphql = JSON.parse(
-        readFileSync(resolve(fixturesPath, 'releases.json'), 'utf8')
-      );
-      req.post('/graphql').reply(200, {
-        data: graphql,
-      });
+      req
+        .get(`${releasesPath}?limit=50&page=1`)
+        .reply(200, [release(1), release(2, true), release(3)])
+        .get(`${releasesPath}?limit=50&page=2`)
+        .reply(200, []);
       const generator = github.releaseIterator();
       let drafts = 0;
       for await (const release of generator) {
@@ -754,19 +788,7 @@ describe('GitHub', () => {
     });
 
     it('iterates through a result withouth releases', async () => {
-      req.post('/graphql').reply(200, {
-        data: {
-          repository: {
-            releases: {
-              nodes: [],
-              pageInfo: {
-                endCursor: null,
-                hasNextPage: false,
-              },
-            },
-          },
-        },
-      });
+      req.get(`${releasesPath}?limit=50&page=1`).reply(200, []);
       const generator = github.releaseIterator();
       const releases: GitHubRelease[] = [];
       for await (const release of generator) {
